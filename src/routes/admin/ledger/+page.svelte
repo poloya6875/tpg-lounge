@@ -64,19 +64,19 @@
   let expensePie: any;
 
   let ApexCharts: any;
+  let showDashboard = $state(false);
 
   onMount(async () => {
     if (typeof window !== 'undefined') {
       const module = await import('apexcharts');
       ApexCharts = module.default;
-      renderCharts();
     }
   });
 
   $effect(() => {
-    // Re-render when selectedYear or ledgers change, if ApexCharts is loaded
-    if (ApexCharts && selectedYear && ledgers) {
-      renderCharts();
+    // Re-render when selectedYear, ledgers, or showDashboard change, if ApexCharts is loaded
+    if (ApexCharts && selectedYear && ledgers && showDashboard) {
+      setTimeout(renderCharts, 50);
     }
   });
 
@@ -106,20 +106,19 @@
     });
     barChart.render();
 
-    // 2. 원형그래프 (매출 비율)
-    let revenueByContent: Record<string, number> = {};
+    // 2. 원형그래프 (매출 비율 - 시공비 vs 부품매출)
+    let costTotal = 0;
+    let partsSalesTotal = 0;
     ledgers.forEach(l => {
-      if (l.cost > 0) revenueByContent[l.content] = (revenueByContent[l.content] || 0) + l.cost;
-      if (l.partsSales > 0) revenueByContent['부품 매출'] = (revenueByContent['부품 매출'] || 0) + l.partsSales;
+      costTotal += l.cost;
+      partsSalesTotal += l.partsSales;
     });
-    let revLabels = Object.keys(revenueByContent);
-    let revSeries = Object.values(revenueByContent);
 
     revenuePie = new ApexCharts(revenuePieEl, {
-      chart: { type: 'donut', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
-      series: revSeries.length ? revSeries : [1],
-      labels: revLabels.length ? revLabels : ['데이터 없음'],
-      colors: ['#39C5BB', '#1a968e', '#6cdbd3', '#fb923c', '#22c55e'],
+      chart: { type: 'pie', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
+      series: (costTotal + partsSalesTotal) > 0 ? [costTotal, partsSalesTotal] : [1],
+      labels: (costTotal + partsSalesTotal) > 0 ? ['시공비', '부품 매출'] : ['데이터 없음'],
+      colors: ['#39C5BB', '#fb923c'],
       title: { text: '매출 관련 비율', align: 'center' }
     });
     revenuePie.render();
@@ -133,7 +132,7 @@
     });
 
     expensePie = new ApexCharts(expensePieEl, {
-      chart: { type: 'donut', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
+      chart: { type: 'pie', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
       series: (expParts+expMeals+expIncidental) > 0 ? [expParts, expMeals, expIncidental] : [1],
       labels: (expParts+expMeals+expIncidental) > 0 ? ['부품 매입', '식대', '기타 부대비용'] : ['지출 없음'],
       colors: ['#f43f5e', '#fb923c', '#eab308'],
@@ -145,7 +144,10 @@
 
 <div class="container admin-page">
   <div class="admin-header">
-    <h1 class="page-title">장부 관리 <span class="text-accent">시스템</span></h1>
+    <div class="title-row">
+      <h1 class="page-title">장부 관리 <span class="text-accent">시스템</span></h1>
+      <button class="btn-primary" onclick={() => showDashboard = true}>통계 대시보드 보기</button>
+    </div>
     <p class="page-subtitle">매출, 매입, 부대비용 등 상세한 재무 현황을 관리합니다.</p>
   </div>
 
@@ -168,26 +170,33 @@
     </div>
   </div>
 
-  <div class="dashboard-section glass-panel">
-    <div class="chart-header">
-      <h2>월별 수익 막대그래프</h2>
-      <select class="year-select" bind:value={selectedYear}>
-        <option value="2025">2025년</option>
-        <option value="2026">2026년</option>
-        <option value="2027">2027년</option>
-      </select>
-    </div>
-    <div bind:this={barChartEl} class="chart-container"></div>
-    
-    <div class="pie-charts-row">
-      <div class="pie-chart-wrapper">
-        <div bind:this={revenuePieEl}></div>
+  {#if showDashboard}
+  <div class="modal-overlay">
+    <div class="dashboard-section glass-panel">
+      <div class="chart-header">
+        <h2>통계 대시보드</h2>
+        <div class="header-actions">
+          <select class="year-select" bind:value={selectedYear}>
+            <option value="2025">2025년</option>
+            <option value="2026">2026년</option>
+            <option value="2027">2027년</option>
+          </select>
+          <button class="btn-close" onclick={() => showDashboard = false}>닫기 ✕</button>
+        </div>
       </div>
-      <div class="pie-chart-wrapper">
-        <div bind:this={expensePieEl}></div>
+      <div bind:this={barChartEl} class="chart-container"></div>
+      
+      <div class="pie-charts-row">
+        <div class="pie-chart-wrapper">
+          <div bind:this={revenuePieEl}></div>
+        </div>
+        <div class="pie-chart-wrapper">
+          <div bind:this={expensePieEl}></div>
+        </div>
       </div>
     </div>
   </div>
+  {/if}
 
   <div class="admin-grid">
     <!-- 새 장부 등록 폼 -->
@@ -315,6 +324,14 @@
     margin-bottom: 30px;
   }
 
+  .title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
   .page-title {
     font-size: 2.5rem;
     margin-bottom: 10px;
@@ -325,33 +342,45 @@
     font-size: 1.1rem;
   }
 
-  .summary-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 40px;
-  }
-
-  .summary-card {
-    padding: 24px;
-    text-align: center;
-  }
-
-  .summary-card h3 {
-    color: var(--text-secondary);
-    font-size: 1rem;
-    margin-bottom: 12px;
-  }
-
-  .amount {
-    font-size: 1.8rem;
-    font-weight: 700;
-    font-family: 'Outfit', sans-serif;
+  /* Modal Overlay Styles for Dashboard */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
   }
 
   .dashboard-section {
     padding: 30px;
-    margin-bottom: 40px;
+    width: 90%;
+    max-width: 1000px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: white;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn-close {
+    background: #f43f5e;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  .btn-close:hover {
+    background: #e11d48;
   }
 
   .chart-header {
@@ -503,6 +532,19 @@
     }
     .amount {
       font-size: 1.5rem;
+    }
+    .title-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    /* Mobile Fullscreen Modal */
+    .dashboard-section {
+      width: 100vw;
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+      padding: 20px 16px;
     }
   }
 </style>
