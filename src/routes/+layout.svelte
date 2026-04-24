@@ -14,7 +14,8 @@
   <nav class="main-nav">
     <div class="container nav-links">
       <a href="/">홈</a>
-      <a href="/services/premium-tuning">프리미엄 튜닝</a>
+      <a href="/services/premium-tuning">시공단가표</a>
+      <a href="/admin/services">시공목록 관리</a>
       <a href="/admin/reservation">예약 관리</a>
       <a href="/admin/ledger">장부 관리</a>
     </div>

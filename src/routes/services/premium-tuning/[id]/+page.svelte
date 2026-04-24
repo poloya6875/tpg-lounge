@@ -1,9 +1,41 @@
-<script>
-  let { data } = $props();
-  let item = $derived(data.item);
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { supabase } from '$lib/supabase';
+
+  type Service = {
+    id: string;
+    name: string;
+    price: string;
+    note: string;
+    youtube_id?: string;
+    desc?: string;
+  };
+
+  let item = $state<Service | null>(null);
+  let loading = $state(true);
+
+  onMount(async () => {
+    const id = $page.params.id;
+    const { data, error } = await supabase
+      .from('services')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (!error && data) item = data;
+    loading = false;
+  });
 </script>
 
 <div class="container page-content">
+  {#if loading}
+    <div style="text-align:center;padding:100px;color:var(--text-secondary);">불러오는 중...</div>
+  {:else if !item}
+    <div style="text-align:center;padding:100px;">
+      <p>서비스를 찾을 수 없습니다.</p>
+      <a href="/services/premium-tuning" class="btn-primary" style="display:inline-block;margin-top:20px;">← 목록으로</a>
+    </div>
+  {:else}
   <div class="back-link">
     <a href="/services/premium-tuning">← 메뉴판으로 돌아가기</a>
   </div>
@@ -13,10 +45,11 @@
     <div class="price-tag">{item.price}</div>
   </div>
 
+  {#if item.youtube_id}
   <div class="glass-panel video-container">
     <div class="video-wrapper">
       <iframe 
-        src="https://www.youtube.com/embed/{item.youtubeId}?autoplay=1&mute=1" 
+        src="https://www.youtube.com/embed/{item.youtube_id}?autoplay=1&mute=1" 
         frameborder="0" 
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
         allowfullscreen
@@ -24,18 +57,22 @@
       ></iframe>
     </div>
   </div>
+  {/if}
 
   <div class="glass-panel info-container">
     <h2>시공 상세 정보</h2>
+    {#if item.desc}
     <p class="desc">{item.desc}</p>
+    {/if}
     <div class="note-box">
-      <strong>참고사항:</strong> {item.note}
+      <strong>참고사항:</strong> {item.note || '문의하세요'}
     </div>
     
     <div class="action-area">
       <a href="/admin/reservation" class="btn-primary btn-large">이 시공으로 예약하기</a>
     </div>
   </div>
+  {/if}
 </div>
 
 <style>
