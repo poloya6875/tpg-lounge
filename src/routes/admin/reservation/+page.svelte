@@ -48,7 +48,7 @@
         contact: newReservation.contact,
         content: newReservation.content,
         cost: newReservation.cost,
-        status: "예약완료",
+        status: "예약중",
       },
     ]);
     if (!error) {
@@ -231,7 +231,7 @@
                         ? 'status-done'
                         : res.status === '취소됨'
                           ? 'status-cancelled'
-                          : res.status === '예약완료'
+                          : res.status === '예약중'
                             ? 'status-approved'
                             : 'status-pending'}"
                     >
@@ -239,7 +239,7 @@
                     </span>
                   </td>
                   <td>
-                    {#if res.status === "예약완료"}
+                    {#if res.status === "예약중"}
                       <button
                         class="btn-action btn-done"
                         onclick={() => approveReservation(res.id)}
