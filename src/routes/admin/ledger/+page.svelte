@@ -73,21 +73,52 @@
     }
   });
 
-  $effect(() => {
-    // Re-render when selectedYear, ledgers, or showDashboard change, if ApexCharts is loaded
-    if (ApexCharts && selectedYear && ledgers && showDashboard) {
-      setTimeout(renderCharts, 50);
+  // Use Svelte action for reliable chart mounting inside {#if} blocks
+  function barChartAction(node: HTMLElement) {
+    async function init() {
+      if (!ApexCharts) {
+        const module = await import('apexcharts');
+        ApexCharts = module.default;
+      }
+      renderBarChart(node);
     }
-  });
+    init();
+    return {
+      destroy() { if (barChart) barChart.destroy(); }
+    };
+  }
 
-  function renderCharts() {
-    if (!ApexCharts || !barChartEl) return;
-    
+  function revenuePieAction(node: HTMLElement) {
+    async function init() {
+      if (!ApexCharts) {
+        const module = await import('apexcharts');
+        ApexCharts = module.default;
+      }
+      renderRevenuePie(node);
+    }
+    init();
+    return {
+      destroy() { if (revenuePie) revenuePie.destroy(); }
+    };
+  }
+
+  function expensePieAction(node: HTMLElement) {
+    async function init() {
+      if (!ApexCharts) {
+        const module = await import('apexcharts');
+        ApexCharts = module.default;
+      }
+      renderExpensePie(node);
+    }
+    init();
+    return {
+      destroy() { if (expensePie) expensePie.destroy(); }
+    };
+  }
+
+  function renderBarChart(node: HTMLElement) {
+    if (!ApexCharts || !node) return;
     if (barChart) barChart.destroy();
-    if (revenuePie) revenuePie.destroy();
-    if (expensePie) expensePie.destroy();
-
-    // 1. 막대그래프 (월별 수익)
     let monthlyData = new Array(12).fill(0);
     ledgers.forEach(l => {
       if (l.date.startsWith(selectedYear)) {
@@ -95,9 +126,8 @@
         monthlyData[month] += (l.cost + l.partsSales - l.partsPurchase - l.incidental - l.meals);
       }
     });
-
-    barChart = new ApexCharts(barChartEl, {
-      chart: { type: 'bar', height: 350, toolbar: { show: false }, fontFamily: 'Noto Sans KR, sans-serif' },
+    barChart = new ApexCharts(node, {
+      chart: { type: 'bar', height: 280, toolbar: { show: false }, fontFamily: 'Noto Sans KR, sans-serif' },
       series: [{ name: '월별 순수익', data: monthlyData }],
       xaxis: { categories: ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'] },
       colors: ['#39C5BB'],
@@ -105,34 +135,30 @@
       yaxis: { labels: { formatter: (val: number) => val.toLocaleString() + '원' } }
     });
     barChart.render();
+  }
 
-    // 2. 원형그래프 (매출 비율 - 시공비 vs 부품매출)
-    let costTotal = 0;
-    let partsSalesTotal = 0;
-    ledgers.forEach(l => {
-      costTotal += l.cost;
-      partsSalesTotal += l.partsSales;
-    });
-
-    revenuePie = new ApexCharts(revenuePieEl, {
-      chart: { type: 'pie', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
+  function renderRevenuePie(node: HTMLElement) {
+    if (!ApexCharts || !node) return;
+    if (revenuePie) revenuePie.destroy();
+    let costTotal = 0, partsSalesTotal = 0;
+    ledgers.forEach(l => { costTotal += l.cost; partsSalesTotal += l.partsSales; });
+    revenuePie = new ApexCharts(node, {
+      chart: { type: 'pie', height: 300, fontFamily: 'Noto Sans KR, sans-serif' },
       series: (costTotal + partsSalesTotal) > 0 ? [costTotal, partsSalesTotal] : [1],
       labels: (costTotal + partsSalesTotal) > 0 ? ['시공비', '부품 매출'] : ['데이터 없음'],
       colors: ['#39C5BB', '#fb923c'],
       title: { text: '매출 관련 비율', align: 'center' }
     });
     revenuePie.render();
+  }
 
-    // 3. 원형그래프 (지출 비율)
+  function renderExpensePie(node: HTMLElement) {
+    if (!ApexCharts || !node) return;
+    if (expensePie) expensePie.destroy();
     let expParts = 0, expMeals = 0, expIncidental = 0;
-    ledgers.forEach(l => {
-      expParts += l.partsPurchase;
-      expMeals += l.meals;
-      expIncidental += l.incidental;
-    });
-
-    expensePie = new ApexCharts(expensePieEl, {
-      chart: { type: 'pie', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
+    ledgers.forEach(l => { expParts += l.partsPurchase; expMeals += l.meals; expIncidental += l.incidental; });
+    expensePie = new ApexCharts(node, {
+      chart: { type: 'pie', height: 300, fontFamily: 'Noto Sans KR, sans-serif' },
       series: (expParts+expMeals+expIncidental) > 0 ? [expParts, expMeals, expIncidental] : [1],
       labels: (expParts+expMeals+expIncidental) > 0 ? ['부품 매입', '식대', '기타 부대비용'] : ['지출 없음'],
       colors: ['#f43f5e', '#fb923c', '#eab308'],
@@ -151,27 +177,8 @@
     <p class="page-subtitle">매출, 매입, 부대비용 등 상세한 재무 현황을 관리합니다.</p>
   </div>
 
-  <div class="summary-cards">
-    <div class="glass-panel summary-card">
-      <h3>이번 달 매출 합계</h3>
-      <p class="amount text-success">{thisMonthRevenue.toLocaleString()}원</p>
-    </div>
-    <div class="glass-panel summary-card">
-      <h3>누적 매출 합계</h3>
-      <p class="amount text-accent">{totalRevenue.toLocaleString()}원</p>
-    </div>
-    <div class="glass-panel summary-card">
-      <h3>총 누적 지출</h3>
-      <p class="amount text-danger">{totalExpense.toLocaleString()}원</p>
-    </div>
-    <div class="glass-panel summary-card">
-      <h3>총 순이익</h3>
-      <p class="amount text-success">{netProfit.toLocaleString()}원</p>
-    </div>
-  </div>
-
   {#if showDashboard}
-  <div class="modal-overlay">
+  <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) showDashboard = false; }}>
     <div class="dashboard-section glass-panel">
       <div class="chart-header">
         <h2>통계 대시보드</h2>
@@ -184,14 +191,37 @@
           <button class="btn-close" onclick={() => showDashboard = false}>닫기 ✕</button>
         </div>
       </div>
-      <div bind:this={barChartEl} class="chart-container"></div>
+
+      <!-- 요약 카드 4개 -->
+      <div class="summary-cards">
+        <div class="summary-card">
+          <h3>이번 달 매출</h3>
+          <p class="amount text-success">{thisMonthRevenue.toLocaleString()}원</p>
+        </div>
+        <div class="summary-card">
+          <h3>누적 매출</h3>
+          <p class="amount text-accent">{totalRevenue.toLocaleString()}원</p>
+        </div>
+        <div class="summary-card">
+          <h3>총 지출</h3>
+          <p class="amount text-danger">{totalExpense.toLocaleString()}원</p>
+        </div>
+        <div class="summary-card">
+          <h3>순이익</h3>
+          <p class="amount text-success">{netProfit.toLocaleString()}원</p>
+        </div>
+      </div>
+
+      <!-- 막대그래프 -->
+      <div use:barChartAction class="chart-container"></div>
       
+      <!-- 원형 차트 2개 -->
       <div class="pie-charts-row">
         <div class="pie-chart-wrapper">
-          <div bind:this={revenuePieEl}></div>
+          <div use:revenuePieAction></div>
         </div>
         <div class="pie-chart-wrapper">
-          <div bind:this={expensePieEl}></div>
+          <div use:expensePieAction></div>
         </div>
       </div>
     </div>
