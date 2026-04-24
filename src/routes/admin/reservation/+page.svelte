@@ -1,8 +1,20 @@
-<script>
-  let reservations = $state([
-    { id: 1, date: '2026-04-25', name: '홍길동', contact: '010-1234-5678', content: '블랙박스 2채널 장착', cost: 250000, status: '승인대기' },
-    { id: 2, date: '2026-04-26', name: '김철수', contact: '010-9876-5432', content: '엠비언트 라이트 시공', cost: 450000, status: '승인완료' }
-  ]);
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { supabase } from '$lib/supabase';
+
+  type Reservation = {
+    id: number;
+    date: string;
+    name: string;
+    contact: string;
+    content: string;
+    cost: number;
+    status: string;
+  };
+
+  let reservations = $state<Reservation[]>([]);
+  let loading = $state(true);
+  let saving = $state(false);
 
   let newReservation = $state({
     date: '',
@@ -12,19 +24,54 @@
     cost: 0
   });
 
-  function addReservation(e) {
+  onMount(async () => {
+    await fetchReservations();
+  });
+
+  async function fetchReservations() {
+    loading = true;
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .order('date', { ascending: false });
+    if (!error && data) reservations = data;
+    loading = false;
+  }
+
+  async function addReservation(e: Event) {
     e.preventDefault();
-    const id = reservations.length ? Math.max(...reservations.map(r => r.id)) + 1 : 1;
-    reservations = [...reservations, { ...newReservation, id, status: '승인대기' }];
-    newReservation = { date: '', name: '', contact: '', content: '', cost: 0 };
+    saving = true;
+    const { error } = await supabase.from('reservations').insert([{
+      date: newReservation.date,
+      name: newReservation.name,
+      contact: newReservation.contact,
+      content: newReservation.content,
+      cost: newReservation.cost,
+      status: '승인대기'
+    }]);
+    if (!error) {
+      newReservation = { date: '', name: '', contact: '', content: '', cost: 0 };
+      await fetchReservations();
+    } else {
+      alert('저장 실패: ' + error.message);
+    }
+    saving = false;
   }
 
-  function approveReservation(id) {
-    reservations = reservations.map(r => r.id === id ? { ...r, status: '승인완료' } : r);
+  async function approveReservation(id: number) {
+    await supabase.from('reservations').update({ status: '승인완료' }).eq('id', id);
+    await fetchReservations();
   }
 
-  function cancelReservation(id) {
-    reservations = reservations.map(r => r.id === id ? { ...r, status: '취소됨' } : r);
+  async function cancelReservation(id: number) {
+    await supabase.from('reservations').update({ status: '취소됨' }).eq('id', id);
+    await fetchReservations();
+  }
+
+  async function deleteReservation(id: number) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    await supabase.from('reservations').delete().eq('id', id);
+    await fetchReservations();
   }
 </script>
 
@@ -35,7 +82,7 @@
   </div>
 
   <div class="admin-grid">
-    <!-- 새 예약 등록 폼 (수동) -->
+    <!-- 새 예약 등록 폼 -->
     <div class="glass-panel form-panel">
       <h2>새 예약 수동 등록</h2>
       <form onsubmit={addReservation}>
@@ -59,13 +106,18 @@
           <label class="form-label">예상 시공 비용 (원)</label>
           <input type="number" class="form-input" bind:value={newReservation.cost} required />
         </div>
-        <button type="submit" class="btn-primary" style="width: 100%">예약 등록</button>
+        <button type="submit" class="btn-primary" style="width: 100%" disabled={saving}>
+          {saving ? '저장 중...' : '예약 등록'}
+        </button>
       </form>
     </div>
 
     <!-- 예약 목록 -->
     <div class="glass-panel list-panel">
       <h2>예약 목록</h2>
+      {#if loading}
+        <div class="loading-msg">불러오는 중...</div>
+      {:else}
       <div class="table-responsive">
         <table>
           <thead>
@@ -97,6 +149,7 @@
                     <button class="btn-action btn-approve" onclick={() => approveReservation(res.id)}>승인</button>
                     <button class="btn-action btn-cancel" onclick={() => cancelReservation(res.id)}>취소</button>
                   {/if}
+                  <button class="btn-action btn-delete" onclick={() => deleteReservation(res.id)}>삭제</button>
                 </td>
               </tr>
             {/each}
@@ -108,6 +161,7 @@
           </tbody>
         </table>
       </div>
+      {/if}
     </div>
   </div>
 </div>
@@ -162,13 +216,13 @@
     white-space: nowrap;
   }
 
-  td:nth-child(4) { /* 시공내용 */
+  td:nth-child(4) {
     white-space: normal;
     word-break: keep-all;
   }
 
   th {
-    background: rgba(57, 197, 187, 0.1); /* Miku mint header */
+    background: rgba(57, 197, 187, 0.1);
   }
 
   .status-badge {
@@ -178,51 +232,27 @@
     font-weight: 600;
   }
 
-  .status-pending {
-    background: rgba(251, 146, 60, 0.2);
-    color: #fb923c;
-  }
-
-  .status-approved {
-    background: rgba(34, 197, 94, 0.2);
-    color: #22c55e;
-  }
-
-  .status-cancelled {
-    background: rgba(244, 63, 94, 0.2);
-    color: #f43f5e;
-  }
+  .status-pending { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+  .status-approved { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+  .status-cancelled { background: rgba(244, 63, 94, 0.2); color: #f43f5e; }
 
   .btn-action {
     border: none;
-    padding: 6px 12px;
+    padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     transition: all 0.2s;
-    margin-right: 4px;
+    margin: 2px;
   }
 
-  .btn-approve {
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-    border: 1px solid rgba(34, 197, 94, 0.3);
-  }
-
-  .btn-approve:hover {
-    background: rgba(34, 197, 94, 0.2);
-  }
-
-  .btn-cancel {
-    background: rgba(244, 63, 94, 0.1);
-    color: #f43f5e;
-    border: 1px solid rgba(244, 63, 94, 0.3);
-  }
-
-  .btn-cancel:hover {
-    background: rgba(244, 63, 94, 0.2);
-  }
+  .btn-approve { background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+  .btn-approve:hover { background: rgba(34, 197, 94, 0.2); }
+  .btn-cancel { background: rgba(251, 146, 60, 0.1); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
+  .btn-cancel:hover { background: rgba(251, 146, 60, 0.2); }
+  .btn-delete { background: rgba(244, 63, 94, 0.1); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); }
+  .btn-delete:hover { background: rgba(244, 63, 94, 0.2); }
 
   .empty-state {
     text-align: center;
@@ -230,9 +260,18 @@
     color: var(--text-secondary);
   }
 
+  .loading-msg {
+    text-align: center;
+    padding: 60px;
+    color: var(--text-secondary);
+  }
+
   @media (max-width: 1024px) {
-    .admin-grid {
-      grid-template-columns: 1fr;
-    }
+    .admin-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    .admin-page { padding: 30px 16px; }
+    .page-title { font-size: 1.8rem; }
   }
 </style>

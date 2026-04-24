@@ -1,18 +1,23 @@
 <script lang="ts">
-  let ledgers = $state([
-    {
-      id: 1,
-      date: '2026-04-24',
-      deposit: 50000,
-      content: '블랙박스 2채널',
-      cost: 250000,
-      paymentMethod: '카드',
-      incidental: 0,
-      partsPurchase: 150000,
-      partsSales: 200000,
-      meals: 12000
-    }
-  ]);
+  import { onMount } from 'svelte';
+  import { supabase } from '$lib/supabase';
+
+  type Ledger = {
+    id: number;
+    date: string;
+    deposit: number;
+    content: string;
+    cost: number;
+    paymentMethod: string;
+    incidental: number;
+    partsPurchase: number;
+    partsSales: number;
+    meals: number;
+  };
+
+  let ledgers = $state<Ledger[]>([]);
+  let loading = $state(true);
+  let saving = $state(false);
 
   let newLedger = $state({
     date: '',
@@ -26,21 +31,61 @@
     meals: 0
   });
 
-  function addLedger(e) {
-    e.preventDefault();
-    const id = ledgers.length ? Math.max(...ledgers.map(l => l.id)) + 1 : 1;
-    ledgers = [...ledgers, { ...newLedger, id }];
-    newLedger = {
-      date: '', deposit: 0, content: '', cost: 0, paymentMethod: '카드',
-      incidental: 0, partsPurchase: 0, partsSales: 0, meals: 0
-    };
-  }
-  
-  function deleteLedger(id) {
-    ledgers = ledgers.filter(l => l.id !== id);
+  onMount(async () => {
+    await fetchLedgers();
+  });
+
+  async function fetchLedgers() {
+    loading = true;
+    const { data, error } = await supabase
+      .from('ledgers')
+      .select('*')
+      .order('date', { ascending: false });
+    if (!error && data) {
+      ledgers = data.map(l => ({
+        id: l.id,
+        date: l.date,
+        deposit: l.deposit,
+        content: l.content,
+        cost: l.cost,
+        paymentMethod: l.payment_method,
+        incidental: l.incidental,
+        partsPurchase: l.parts_purchase,
+        partsSales: l.parts_sales,
+        meals: l.meals
+      }));
+    }
+    loading = false;
   }
 
-  import { onMount } from 'svelte';
+  async function addLedger(e: Event) {
+    e.preventDefault();
+    saving = true;
+    const { error } = await supabase.from('ledgers').insert([{
+      date: newLedger.date,
+      deposit: newLedger.deposit,
+      content: newLedger.content,
+      cost: newLedger.cost,
+      payment_method: newLedger.paymentMethod,
+      incidental: newLedger.incidental,
+      parts_purchase: newLedger.partsPurchase,
+      parts_sales: newLedger.partsSales,
+      meals: newLedger.meals
+    }]);
+    if (!error) {
+      newLedger = { date: '', deposit: 0, content: '', cost: 0, paymentMethod: '카드', incidental: 0, partsPurchase: 0, partsSales: 0, meals: 0 };
+      await fetchLedgers();
+    } else {
+      alert('저장 실패: ' + error.message);
+    }
+    saving = false;
+  }
+
+  async function deleteLedger(id: number) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    await supabase.from('ledgers').delete().eq('id', id);
+    await fetchLedgers();
+  }
 
   // Calculate totals
   let totalRevenue = $derived(ledgers.reduce((sum, l) => sum + l.cost + l.partsSales, 0));
@@ -284,13 +329,18 @@
           </div>
         </div>
 
-        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">내역 등록</button>
+        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;" disabled={saving}>
+          {saving ? '저장 중...' : '내역 등록'}
+        </button>
       </form>
     </div>
 
     <!-- 장부 목록 -->
     <div class="glass-panel list-panel">
       <h2>장부 내역</h2>
+      {#if loading}
+        <div style="text-align:center;padding:60px;color:var(--text-secondary);">불러오는 중...</div>
+      {:else}
       <div class="table-responsive">
         <table>
           <thead>
@@ -341,6 +391,7 @@
           </tbody>
         </table>
       </div>
+      {/if}
     </div>
   </div>
 </div>
