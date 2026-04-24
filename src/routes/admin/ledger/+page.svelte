@@ -87,6 +87,49 @@
     await fetchLedgers();
   }
 
+  let editingId = $state<number | null>(null);
+  let editForm = $state({
+    date: '', content: '', cost: 0, paymentMethod: '카드',
+    incidental: 0, partsPurchase: 0, partsSales: 0, meals: 0
+  });
+
+  function startEdit(l: Ledger) {
+    editingId = l.id;
+    editForm = {
+      date: l.date,
+      content: l.content,
+      cost: l.cost,
+      paymentMethod: l.paymentMethod,
+      incidental: l.incidental,
+      partsPurchase: l.partsPurchase,
+      partsSales: l.partsSales,
+      meals: l.meals
+    };
+  }
+
+  function cancelEdit() { editingId = null; }
+
+  async function saveEdit() {
+    saving = true;
+    const { error } = await supabase.from('ledgers').update({
+      date: editForm.date,
+      content: editForm.content,
+      cost: editForm.cost,
+      payment_method: editForm.paymentMethod,
+      incidental: editForm.incidental,
+      parts_purchase: editForm.partsPurchase,
+      parts_sales: editForm.partsSales,
+      meals: editForm.meals
+    }).eq('id', editingId);
+    if (!error) {
+      editingId = null;
+      await fetchLedgers();
+    } else {
+      alert('수정 실패: ' + error.message);
+    }
+    saving = false;
+  }
+
   // Calculate totals
   let totalRevenue = $derived(ledgers.reduce((sum, l) => sum + l.cost + l.partsSales, 0));
   let totalExpense = $derived(ledgers.reduce((sum, l) => sum + l.partsPurchase + l.incidental + l.meals, 0));
@@ -356,13 +399,49 @@
           </thead>
           <tbody>
             {#each ledgers as l (l.id)}
+              {#if editingId === l.id}
+              <!-- 인라인 수정 모드 -->
+              <tr style="background:rgba(57,197,187,0.05);">
+                <td><input class="form-input mini" type="date" bind:value={editForm.date} /></td>
+                <td><input class="form-input mini" type="text" bind:value={editForm.content} /></td>
+                <td>
+                  <select class="form-input mini" bind:value={editForm.paymentMethod}>
+                    <option value="카드">카드</option>
+                    <option value="현금">현금</option>
+                    <option value="계좌이체">계좌이체</option>
+                    <option value="미정">미정</option>
+                  </select>
+                </td>
+                <td>
+                  <div class="amount-split">
+                    <input class="form-input mini" type="number" bind:value={editForm.cost} placeholder="시공비" />
+                  </div>
+                </td>
+                <td>
+                  <div class="amount-split">
+                    <input class="form-input mini" type="number" bind:value={editForm.partsPurchase} placeholder="매입" />
+                    <input class="form-input mini" type="number" bind:value={editForm.partsSales} placeholder="매출" />
+                  </div>
+                </td>
+                <td>
+                  <div class="amount-split">
+                    <input class="form-input mini" type="number" bind:value={editForm.meals} placeholder="식대" />
+                    <input class="form-input mini" type="number" bind:value={editForm.incidental} placeholder="부대" />
+                  </div>
+                </td>
+                <td>
+                  <button class="btn-action btn-approve" onclick={saveEdit} disabled={saving}>저장</button>
+                  <button class="btn-action btn-cancel-edit" onclick={cancelEdit}>취소</button>
+                </td>
+              </tr>
+              {:else}
+              <!-- 일반 보기 모드 -->
               <tr>
                 <td>{l.date}</td>
                 <td>{l.content}</td>
                 <td><span class="pay-method">{l.paymentMethod}</span></td>
                 <td>
                   <div class="amount-split">
-                    <span class="text-secondary">예: {l.deposit.toLocaleString()}</span>
                     <span>시: {l.cost.toLocaleString()}</span>
                   </div>
                 </td>
@@ -379,9 +458,11 @@
                   </div>
                 </td>
                 <td>
+                  <button class="btn-action btn-edit" onclick={() => startEdit(l)}>수정</button>
                   <button class="btn-action btn-delete" onclick={() => deleteLedger(l.id)}>삭제</button>
                 </td>
               </tr>
+              {/if}
             {/each}
             {#if ledgers.length === 0}
               <tr>
@@ -614,6 +695,36 @@
 
   .btn-delete:hover {
     background: rgba(244, 63, 94, 0.2);
+  }
+
+  .btn-edit {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+  }
+  .btn-edit:hover { background: rgba(59, 130, 246, 0.2); }
+
+  .btn-approve {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  .btn-approve:hover { background: rgba(34, 197, 94, 0.2); }
+
+  .btn-cancel-edit {
+    background: rgba(100, 116, 139, 0.1);
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+  }
+  .btn-cancel-edit:hover { background: rgba(100, 116, 139, 0.2); }
+
+  .mini {
+    padding: 5px 6px;
+    font-size: 0.82rem;
+    width: 100%;
+    min-width: 60px;
+    max-width: 130px;
+    margin-bottom: 2px;
   }
 
   .empty-state {
