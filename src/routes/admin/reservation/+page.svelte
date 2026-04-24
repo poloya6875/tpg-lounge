@@ -243,7 +243,7 @@
                       <button
                         class="btn-action btn-done"
                         onclick={() => approveReservation(res.id)}
-                        >시공완료</button
+                        >👆 시공완료</button
                       >
                       <button
                         class="btn-action btn-cancel"
