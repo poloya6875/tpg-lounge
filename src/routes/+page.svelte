@@ -1,8 +1,16 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
 
+  interface Video {
+    id: string;
+    title: string;
+    thumbnail: string;
+    link: string;
+    author: string;
+  }
+
   // State for YouTube videos
-  let videos = $state([]);
+  let videos: Video[] = $state([]);
   let loading = $state(true);
   let error = $state(false);
 
