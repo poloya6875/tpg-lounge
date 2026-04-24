@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   let ledgers = $state([
     {
       id: 1,
