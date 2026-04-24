@@ -194,19 +194,19 @@
 
       <!-- 요약 카드 4개 -->
       <div class="summary-cards">
-        <div class="summary-card">
+        <div class="summary-card glass-panel">
           <h3>이번 달 매출</h3>
           <p class="amount text-success">{thisMonthRevenue.toLocaleString()}원</p>
         </div>
-        <div class="summary-card">
+        <div class="summary-card glass-panel">
           <h3>누적 매출</h3>
           <p class="amount text-accent">{totalRevenue.toLocaleString()}원</p>
         </div>
-        <div class="summary-card">
+        <div class="summary-card glass-panel">
           <h3>총 지출</h3>
           <p class="amount text-danger">{totalExpense.toLocaleString()}원</p>
         </div>
-        <div class="summary-card">
+        <div class="summary-card glass-panel">
           <h3>순이익</h3>
           <p class="amount text-success">{netProfit.toLocaleString()}원</p>
         </div>
@@ -391,6 +391,30 @@
     max-height: 90vh;
     overflow-y: auto;
     background: white;
+  }
+
+  .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .summary-card {
+    padding: 20px;
+    text-align: center;
+  }
+
+  .summary-card h3 {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+  }
+
+  .amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
   }
 
   .header-actions {
