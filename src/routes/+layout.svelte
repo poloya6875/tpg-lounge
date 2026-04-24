@@ -65,6 +65,7 @@
   .nav-links {
     display: flex;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 40px;
   }
 
@@ -112,5 +113,26 @@
   .location a:hover {
     background: #ffffff;
     color: var(--accent-color);
+  }
+
+  @media (max-width: 768px) {
+    .headline-banner {
+      height: 100px;
+    }
+    .nav-links {
+      gap: 16px;
+      padding: 0 10px;
+    }
+    .nav-links a {
+      font-size: 0.95rem;
+    }
+    .footer-content {
+      flex-direction: column;
+      gap: 20px;
+      text-align: center;
+    }
+    footer {
+      padding: 30px 0;
+    }
   }
 </style>

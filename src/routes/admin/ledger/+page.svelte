@@ -40,10 +40,107 @@
     ledgers = ledgers.filter(l => l.id !== id);
   }
 
+  import { onMount } from 'svelte';
+
   // Calculate totals
   let totalRevenue = $derived(ledgers.reduce((sum, l) => sum + l.cost + l.partsSales, 0));
   let totalExpense = $derived(ledgers.reduce((sum, l) => sum + l.partsPurchase + l.incidental + l.meals, 0));
   let netProfit = $derived(totalRevenue - totalExpense);
+
+  let currentMonthStr = new Date().toISOString().slice(0, 7);
+  let thisMonthRevenue = $derived(
+    ledgers.filter(l => l.date.startsWith(currentMonthStr))
+           .reduce((sum, l) => sum + l.cost + l.partsSales, 0)
+  );
+
+  let selectedYear = $state(new Date().getFullYear().toString());
+
+  let barChartEl: HTMLElement;
+  let revenuePieEl: HTMLElement;
+  let expensePieEl: HTMLElement;
+
+  let barChart: any;
+  let revenuePie: any;
+  let expensePie: any;
+
+  let ApexCharts: any;
+
+  onMount(async () => {
+    if (typeof window !== 'undefined') {
+      const module = await import('apexcharts');
+      ApexCharts = module.default;
+      renderCharts();
+    }
+  });
+
+  $effect(() => {
+    // Re-render when selectedYear or ledgers change, if ApexCharts is loaded
+    if (ApexCharts && selectedYear && ledgers) {
+      renderCharts();
+    }
+  });
+
+  function renderCharts() {
+    if (!ApexCharts || !barChartEl) return;
+    
+    if (barChart) barChart.destroy();
+    if (revenuePie) revenuePie.destroy();
+    if (expensePie) expensePie.destroy();
+
+    // 1. 막대그래프 (월별 수익)
+    let monthlyData = new Array(12).fill(0);
+    ledgers.forEach(l => {
+      if (l.date.startsWith(selectedYear)) {
+        let month = parseInt(l.date.split('-')[1], 10) - 1;
+        monthlyData[month] += (l.cost + l.partsSales - l.partsPurchase - l.incidental - l.meals);
+      }
+    });
+
+    barChart = new ApexCharts(barChartEl, {
+      chart: { type: 'bar', height: 350, toolbar: { show: false }, fontFamily: 'Noto Sans KR, sans-serif' },
+      series: [{ name: '월별 순수익', data: monthlyData }],
+      xaxis: { categories: ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'] },
+      colors: ['#39C5BB'],
+      dataLabels: { enabled: false },
+      yaxis: { labels: { formatter: (val: number) => val.toLocaleString() + '원' } }
+    });
+    barChart.render();
+
+    // 2. 원형그래프 (매출 비율)
+    let revenueByContent: Record<string, number> = {};
+    ledgers.forEach(l => {
+      if (l.cost > 0) revenueByContent[l.content] = (revenueByContent[l.content] || 0) + l.cost;
+      if (l.partsSales > 0) revenueByContent['부품 매출'] = (revenueByContent['부품 매출'] || 0) + l.partsSales;
+    });
+    let revLabels = Object.keys(revenueByContent);
+    let revSeries = Object.values(revenueByContent);
+
+    revenuePie = new ApexCharts(revenuePieEl, {
+      chart: { type: 'donut', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
+      series: revSeries.length ? revSeries : [1],
+      labels: revLabels.length ? revLabels : ['데이터 없음'],
+      colors: ['#39C5BB', '#1a968e', '#6cdbd3', '#fb923c', '#22c55e'],
+      title: { text: '매출 관련 비율', align: 'center' }
+    });
+    revenuePie.render();
+
+    // 3. 원형그래프 (지출 비율)
+    let expParts = 0, expMeals = 0, expIncidental = 0;
+    ledgers.forEach(l => {
+      expParts += l.partsPurchase;
+      expMeals += l.meals;
+      expIncidental += l.incidental;
+    });
+
+    expensePie = new ApexCharts(expensePieEl, {
+      chart: { type: 'donut', height: 320, fontFamily: 'Noto Sans KR, sans-serif' },
+      series: (expParts+expMeals+expIncidental) > 0 ? [expParts, expMeals, expIncidental] : [1],
+      labels: (expParts+expMeals+expIncidental) > 0 ? ['부품 매입', '식대', '기타 부대비용'] : ['지출 없음'],
+      colors: ['#f43f5e', '#fb923c', '#eab308'],
+      title: { text: '매입 및 지출 비율', align: 'center' }
+    });
+    expensePie.render();
+  }
 </script>
 
 <div class="container admin-page">
@@ -54,16 +151,41 @@
 
   <div class="summary-cards">
     <div class="glass-panel summary-card">
-      <h3>총 매출</h3>
-      <p class="amount text-success">{totalRevenue.toLocaleString()}원</p>
+      <h3>이번 달 매출 합계</h3>
+      <p class="amount text-success">{thisMonthRevenue.toLocaleString()}원</p>
     </div>
     <div class="glass-panel summary-card">
-      <h3>총 지출</h3>
+      <h3>누적 매출 합계</h3>
+      <p class="amount text-accent">{totalRevenue.toLocaleString()}원</p>
+    </div>
+    <div class="glass-panel summary-card">
+      <h3>총 누적 지출</h3>
       <p class="amount text-danger">{totalExpense.toLocaleString()}원</p>
     </div>
     <div class="glass-panel summary-card">
-      <h3>순이익</h3>
-      <p class="amount text-accent">{netProfit.toLocaleString()}원</p>
+      <h3>총 순이익</h3>
+      <p class="amount text-success">{netProfit.toLocaleString()}원</p>
+    </div>
+  </div>
+
+  <div class="dashboard-section glass-panel">
+    <div class="chart-header">
+      <h2>월별 수익 막대그래프</h2>
+      <select class="year-select" bind:value={selectedYear}>
+        <option value="2025">2025년</option>
+        <option value="2026">2026년</option>
+        <option value="2027">2027년</option>
+      </select>
+    </div>
+    <div bind:this={barChartEl} class="chart-container"></div>
+    
+    <div class="pie-charts-row">
+      <div class="pie-chart-wrapper">
+        <div bind:this={revenuePieEl}></div>
+      </div>
+      <div class="pie-chart-wrapper">
+        <div bind:this={expensePieEl}></div>
+      </div>
     </div>
   </div>
 
@@ -205,7 +327,7 @@
 
   .summary-cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px;
     margin-bottom: 40px;
   }
@@ -222,19 +344,69 @@
   }
 
   .amount {
-    font-size: 2rem;
+    font-size: 1.8rem;
     font-weight: 700;
     font-family: 'Outfit', sans-serif;
   }
 
+  .dashboard-section {
+    padding: 30px;
+    margin-bottom: 40px;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .chart-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+  }
+
+  .year-select {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    font-weight: 600;
+    outline: none;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .chart-container {
+    width: 100%;
+    margin-bottom: 40px;
+  }
+
+  .pie-charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+  }
+
+  .pie-chart-wrapper {
+    background: rgba(255, 255, 255, 0.5);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+
   .text-success { color: #22c55e; }
   .text-danger { color: #f43f5e; }
+  .text-accent { color: var(--accent-color); }
 
   .admin-grid {
     display: grid;
     grid-template-columns: 350px 1fr;
     gap: 32px;
   }
+
+  /* ... rest ... */
 
   .form-row {
     display: grid;
@@ -319,6 +491,18 @@
   @media (max-width: 1024px) {
     .admin-grid, .summary-cards {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .pie-charts-row {
+      grid-template-columns: 1fr;
+    }
+    .admin-page {
+      padding: 30px 16px;
+    }
+    .amount {
+      font-size: 1.5rem;
     }
   }
 </style>

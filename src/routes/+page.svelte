@@ -196,11 +196,14 @@
   .hero-actions {
     display: flex;
     gap: 16px;
+    flex-wrap: wrap;
   }
 
   .btn-large {
     padding: 14px 28px;
     font-size: 1.05rem;
+    flex: 1 1 auto;
+    text-align: center;
   }
 
   .btn-secondary {
@@ -452,10 +455,22 @@
 
   @media (max-width: 768px) {
     .hero-title {
-      font-size: 2.5rem;
+      font-size: 2.2rem;
     }
     .hero-section {
-      padding: 40px 0;
+      padding: 40px 16px;
+    }
+    .section-title {
+      font-size: 1.8rem;
+    }
+    .services-section, .youtube-section {
+      padding: 60px 16px;
+    }
+    .btn-large {
+      width: 100%;
+    }
+    .hero-actions {
+      flex-direction: column;
     }
   }
 </style>
