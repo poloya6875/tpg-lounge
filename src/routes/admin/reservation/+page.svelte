@@ -59,7 +59,40 @@
   }
 
   async function approveReservation(id: number) {
-    await supabase.from('reservations').update({ status: '승인완료' }).eq('id', id);
+    // 1. 예약 상태 승인완료로 업데이트
+    const { error: updateError } = await supabase
+      .from('reservations')
+      .update({ status: '승인완료' })
+      .eq('id', id);
+
+    if (updateError) {
+      alert('승인 처리 실패: ' + updateError.message);
+      return;
+    }
+
+    // 2. 해당 예약 정보 조회
+    const res = reservations.find(r => r.id === id);
+    if (!res) return;
+
+    // 3. 장부에 자동 등록 (시공비용만)
+    const { error: ledgerError } = await supabase.from('ledgers').insert([{
+      date: res.date,
+      content: res.content,
+      cost: res.cost,
+      deposit: 0,
+      payment_method: '미정',
+      incidental: 0,
+      parts_purchase: 0,
+      parts_sales: 0,
+      meals: 0
+    }]);
+
+    if (ledgerError) {
+      alert('장부 자동 등록 실패: ' + ledgerError.message);
+    } else {
+      alert(`✅ 승인 완료!\n장부에 자동으로 등록되었습니다.\n- 시공 내용: ${res.content}\n- 시공 비용: ${res.cost.toLocaleString()}원`);
+    }
+
     await fetchReservations();
   }
 
