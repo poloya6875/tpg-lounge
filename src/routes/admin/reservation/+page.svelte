@@ -62,7 +62,7 @@
     // 1. 예약 상태 승인완료로 업데이트
     const { error: updateError } = await supabase
       .from('reservations')
-      .update({ status: '승인완료' })
+      .update({ status: '작업완료' })
       .eq('id', id);
 
     if (updateError) {
@@ -173,13 +173,13 @@
                 <td>{res.content}</td>
                 <td>{res.cost.toLocaleString()}원</td>
                 <td>
-                  <span class="status-badge {res.status === '승인완료' ? 'status-approved' : (res.status === '취소됨' ? 'status-cancelled' : 'status-pending')}">
+                  <span class="status-badge {res.status === '작업완료' ? 'status-approved' : (res.status === '취소됨' ? 'status-cancelled' : 'status-pending')}">
                     {res.status}
                   </span>
                 </td>
                 <td>
                   {#if res.status === '승인대기'}
-                    <button class="btn-action btn-approve" onclick={() => approveReservation(res.id)}>승인</button>
+                    <button class="btn-action btn-approve" onclick={() => approveReservation(res.id)}>✅ 작업완료</button>
                     <button class="btn-action btn-cancel" onclick={() => cancelReservation(res.id)}>취소</button>
                   {/if}
                   <button class="btn-action btn-delete" onclick={() => deleteReservation(res.id)}>삭제</button>
