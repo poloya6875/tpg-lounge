@@ -47,7 +47,7 @@
       contact: newReservation.contact,
       content: newReservation.content,
       cost: newReservation.cost,
-      status: '승인대기'
+      status: '예약완료'
     }]);
     if (!error) {
       newReservation = { date: '', name: '', contact: '', content: '', cost: 0 };
@@ -62,7 +62,7 @@
     // 1. 예약 상태 승인완료로 업데이트
     const { error: updateError } = await supabase
       .from('reservations')
-      .update({ status: '작업완료' })
+      .update({ status: '완료' })
       .eq('id', id);
 
     if (updateError) {
@@ -90,7 +90,7 @@
     if (ledgerError) {
       alert('장부 자동 등록 실패: ' + ledgerError.message);
     } else {
-      alert(`✅ 승인 완료!\n장부에 자동으로 등록되었습니다.\n- 시공 내용: ${res.content}\n- 시공 비용: ${res.cost.toLocaleString()}원`);
+      alert(`✅ 시공완료!\n장부에 자동으로 등록되었습니다.\n- 시공 내용: ${res.content}\n- 시공 비용: ${res.cost.toLocaleString()}원`);
     }
 
     await fetchReservations();
@@ -173,13 +173,17 @@
                 <td>{res.content}</td>
                 <td>{res.cost.toLocaleString()}원</td>
                 <td>
-                  <span class="status-badge {res.status === '작업완료' ? 'status-approved' : (res.status === '취소됨' ? 'status-cancelled' : 'status-pending')}">
+                  <span class="status-badge
+                    {res.status === '완료' ? 'status-done' : 
+                     res.status === '취소됨' ? 'status-cancelled' :
+                     res.status === '예약완료' ? 'status-approved' :
+                     'status-pending'}">
                     {res.status}
                   </span>
                 </td>
                 <td>
-                  {#if res.status === '승인대기'}
-                    <button class="btn-action btn-approve" onclick={() => approveReservation(res.id)}>✅ 작업완료</button>
+                  {#if res.status === '예약완료'}
+                    <button class="btn-action btn-done" onclick={() => approveReservation(res.id)}>구로 시공완료</button>
                     <button class="btn-action btn-cancel" onclick={() => cancelReservation(res.id)}>취소</button>
                   {/if}
                   <button class="btn-action btn-delete" onclick={() => deleteReservation(res.id)}>삭제</button>
@@ -265,9 +269,10 @@
     font-weight: 600;
   }
 
-  .status-pending { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
-  .status-approved { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-  .status-cancelled { background: rgba(244, 63, 94, 0.2); color: #f43f5e; }
+  .status-pending  { background: rgba(251, 146, 60, 0.2);  color: #fb923c; }  /* 예약대기 - 주황 */
+  .status-approved { background: rgba(34, 197, 94, 0.2);   color: #22c55e; }  /* 예약완료 - 초록 */
+  .status-done     { background: rgba(59, 130, 246, 0.2);   color: #3b82f6; }  /* 완료     - 파란 */
+  .status-cancelled{ background: rgba(244, 63, 94, 0.2);   color: #f43f5e; }  /* 취소됨  - 빨강 */
 
   .btn-action {
     border: none;
@@ -280,9 +285,11 @@
     margin: 2px;
   }
 
-  .btn-approve { background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+  .btn-approve { background: rgba(34, 197, 94, 0.1);  color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
   .btn-approve:hover { background: rgba(34, 197, 94, 0.2); }
-  .btn-cancel { background: rgba(251, 146, 60, 0.1); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
+  .btn-done    { background: rgba(59, 130, 246, 0.1);  color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+  .btn-done:hover { background: rgba(59, 130, 246, 0.2); }
+  .btn-cancel  { background: rgba(251, 146, 60, 0.1);  color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
   .btn-cancel:hover { background: rgba(251, 146, 60, 0.2); }
   .btn-delete { background: rgba(244, 63, 94, 0.1); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); }
   .btn-delete:hover { background: rgba(244, 63, 94, 0.2); }
